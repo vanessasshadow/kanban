@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { LoginPage } from './LoginPage';
 import { KanbanBoard } from './KanbanBoard';
 import { AdminPanel } from './AdminPanel';
+import { ToastProvider } from './Toast';
 
 interface SessionData {
   authenticated: boolean;
@@ -48,14 +49,17 @@ export function AuthWrapper() {
 
   if (!session?.authenticated) {
     return (
-      <LoginPage 
-        onSuccess={checkSession} 
-        needsSetup={session?.needsSetup}
-      />
+      <ToastProvider>
+        <LoginPage 
+          onSuccess={checkSession} 
+          needsSetup={session?.needsSetup}
+        />
+      </ToastProvider>
     );
   }
 
   return (
+    <ToastProvider>
     <div className="relative">
       {/* User menu */}
       <div className="fixed top-4 right-4 z-40 flex items-center gap-3">
@@ -89,5 +93,6 @@ export function AuthWrapper() {
 
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
     </div>
+    </ToastProvider>
   );
 }

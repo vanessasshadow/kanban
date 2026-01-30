@@ -18,10 +18,12 @@ import { Column } from './Column';
 import { TaskCard } from './TaskCard';
 import { TaskModal } from './TaskModal';
 import { EpicSelector } from './EpicSelector';
+import { useToast } from './Toast';
 
 export function KanbanBoard() {
   const { tasks, isLoaded, addTask, updateTask, deleteTask, moveTask } = useTasks();
   const { epics, isLoaded: epicsLoaded, addEpic, deleteEpic } = useEpics();
+  const { showToast } = useToast();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -85,25 +87,35 @@ export function KanbanBoard() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteTask = (id: string) => {
+  const handleDeleteTask = async (id: string) => {
     if (confirm('Delete this task?')) {
-      deleteTask(id);
+      try {
+        await deleteTask(id);
+        showToast('Task deleted', 'success');
+      } catch {
+        showToast('Failed to delete task', 'error');
+      }
     }
   };
 
-  const handleSaveTask = (
+  const handleSaveTask = async (
     title: string,
     description: string,
     priority: Priority,
     columnId?: ColumnId,
     epicId?: string | null
   ) => {
-    if (editingTask) {
-      updateTask(editingTask.id, { title, description, priority, epicId });
-    } else {
-      // Use selected epic if creating from filtered view
-      const taskEpicId = epicId !== undefined ? epicId : selectedEpicId;
-      addTask(title, description, priority, columnId || 'backlog', taskEpicId);
+    try {
+      if (editingTask) {
+        await updateTask(editingTask.id, { title, description, priority, epicId });
+        showToast('Task updated', 'success');
+      } else {
+        const taskEpicId = epicId !== undefined ? epicId : selectedEpicId;
+        await addTask(title, description, priority, columnId || 'backlog', taskEpicId);
+        showToast('Task created', 'success');
+      }
+    } catch {
+      showToast('Failed to save task', 'error');
     }
   };
 
@@ -126,8 +138,24 @@ export function KanbanBoard() {
         epics={epics}
         selectedEpicId={selectedEpicId}
         onSelect={setSelectedEpicId}
-        onAddEpic={addEpic}
-        onDeleteEpic={deleteEpic}
+        onAddEpic={async (name, color) => {
+          try {
+            await addEpic(name, color);
+            showToast(`Epic "${name}" created`, 'success');
+          } catch {
+            showToast('Failed to create epic', 'error');
+          }
+        }}
+        onDeleteEpic={async (id) => {
+          const epic = epics.find(e => e.id === id);
+          try {
+            await deleteEpic(id);
+            showToast(`Epic "${epic?.name}" deleted`, 'success');
+            if (selectedEpicId === id) setSelectedEpicId(null);
+          } catch {
+            showToast('Failed to delete epic', 'error');
+          }
+        }}
       />
 
       <DndContext
