@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Task, Priority, ColumnId } from '@/types';
 
 interface TaskModalProps {
@@ -15,7 +15,13 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
+  
+  const modalRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const firstFocusableRef = useRef<HTMLInputElement>(null);
+  const lastFocusableRef = useRef<HTMLButtonElement>(null);
 
+  // Reset form when task changes or modal opens
   useEffect(() => {
     if (task) {
       setTitle(task.title);
@@ -28,6 +34,72 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
     }
   }, [task, isOpen]);
 
+  // Focus title input when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      // Small delay to ensure modal is rendered
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 10);
+    }
+  }, [isOpen]);
+
+  // Handle escape key and focus trap
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!isOpen) return;
+
+    // Close on Escape
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+
+    // Focus trap on Tab
+    if (e.key === 'Tab') {
+      const focusableElements = modalRef.current?.querySelectorAll<HTMLElement>(
+        'input, textarea, button, [tabindex]:not([tabindex="-1"])'
+      );
+      
+      if (!focusableElements || focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        // Shift + Tab: if on first element, go to last
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab: if on last element, go to first
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+  }, [isOpen, onClose]);
+
+  // Add/remove keyboard listener
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -37,54 +109,76 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
     onClose();
   };
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div 
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+      onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
       <div 
+        ref={modalRef}
         className="bg-zinc-900 rounded-xl border border-zinc-800 w-full max-w-md shadow-xl"
         onClick={e => e.stopPropagation()}
       >
         <div className="p-4 border-b border-zinc-800">
-          <h2 className="text-lg font-semibold text-zinc-100">
+          <h2 id="modal-title" className="text-lg font-semibold text-zinc-100">
             {task ? 'Edit Task' : 'New Task'}
           </h2>
         </div>
         
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">Title</label>
+            <label htmlFor="task-title" className="block text-sm text-zinc-400 mb-1">
+              Title
+            </label>
             <input
+              ref={titleInputRef}
+              id="task-title"
               type="text"
               value={title}
               onChange={e => setTitle(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2
-                         text-zinc-100 focus:outline-none focus:border-zinc-600"
+                         text-zinc-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               placeholder="Enter task title..."
-              autoFocus
             />
           </div>
           
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">Description (optional)</label>
+            <label htmlFor="task-description" className="block text-sm text-zinc-400 mb-1">
+              Description (optional)
+            </label>
             <textarea
+              id="task-description"
               value={description}
               onChange={e => setDescription(e.target.value)}
               className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2
-                         text-zinc-100 focus:outline-none focus:border-zinc-600 resize-none"
+                         text-zinc-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
               placeholder="Add more details..."
               rows={3}
             />
           </div>
           
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Priority</label>
-            <div className="flex gap-2">
+          <fieldset>
+            <legend className="block text-sm text-zinc-400 mb-2">Priority</legend>
+            <div className="flex gap-2" role="radiogroup">
               {(['low', 'medium', 'high'] as Priority[]).map(p => (
                 <button
                   key={p}
                   type="button"
+                  role="radio"
+                  aria-checked={priority === p}
                   onClick={() => setPriority(p)}
                   className={`
                     flex-1 py-2 rounded-lg text-sm font-medium transition-colors
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-zinc-900
                     ${priority === p 
                       ? p === 'low' 
                         ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
@@ -99,14 +193,15 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
           
           <div className="flex gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
               className="flex-1 py-2 rounded-lg text-sm font-medium
-                         bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+                         bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
             >
               Cancel
             </button>
@@ -115,7 +210,8 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
               disabled={!title.trim()}
               className="flex-1 py-2 rounded-lg text-sm font-medium
                          bg-blue-600 text-white hover:bg-blue-500 transition-colors
-                         disabled:opacity-50 disabled:cursor-not-allowed"
+                         disabled:opacity-50 disabled:cursor-not-allowed
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
             >
               {task ? 'Save Changes' : 'Create Task'}
             </button>
