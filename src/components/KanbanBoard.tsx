@@ -107,7 +107,8 @@ export function KanbanBoard() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4 md:justify-center">
+        <div className="flex justify-center overflow-x-auto pb-4">
+        <div className="flex gap-4">
           {COLUMNS.map(column => (
             <Column
               key={column.id}
@@ -118,6 +119,7 @@ export function KanbanBoard() {
               onAddTask={handleAddTask}
             />
           ))}
+        </div>
         </div>
 
         <DragOverlay>
