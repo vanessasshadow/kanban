@@ -1,0 +1,51 @@
+name: PR Notification
+
+on:
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Clawdbot on Review
+        if: github.event_name == 'pull_request_review'
+        env:
+          REVIEW_STATE: ${{ github.event.review.state }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          REVIEWER: ${{ github.event.review.user.login }}
+          REVIEW_BODY: ${{ github.event.review.body }}
+        run: |
+          if [ "$REVIEW_STATE" = "approved" ]; then
+            ACTION="APPROVED"
+          elif [ "$REVIEW_STATE" = "changes_requested" ]; then
+            ACTION="CHANGES_REQUESTED"
+          else
+            ACTION="COMMENTED"
+          fi
+          
+          MESSAGE="PR #${PR_NUMBER} ${ACTION} by ${REVIEWER}. Title: ${PR_TITLE}. ${REVIEW_BODY:+Review comment: ${REVIEW_BODY}} If approved, merge the PR. If changes requested or commented, check for new comments and address them."
+          
+          curl -s -X POST "${{ secrets.CLAWDBOT_WEBHOOK_URL }}/hooks/agent" \
+            -H "Authorization: Bearer ${{ secrets.CLAWDBOT_HOOK_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"message\": \"$MESSAGE\", \"name\": \"GitHub\", \"sessionKey\": \"hook:github:pr-${PR_NUMBER}\", \"deliver\": false, \"model\": \"anthropic/claude-sonnet-4-5\"}"
+
+      - name: Notify Clawdbot on Review Comment
+        if: github.event_name == 'pull_request_review_comment'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          FILE_PATH: ${{ github.event.comment.path }}
+        run: |
+          MESSAGE="New review comment on PR #${PR_NUMBER} (${PR_TITLE}) by ${COMMENTER} on file ${FILE_PATH}: ${COMMENT_BODY}. Please address this comment and push a fix."
+          
+          curl -s -X POST "${{ secrets.CLAWDBOT_WEBHOOK_URL }}/hooks/agent" \
+            -H "Authorization: Bearer ${{ secrets.CLAWDBOT_HOOK_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"message\": \"$MESSAGE\", \"name\": \"GitHub\", \"sessionKey\": \"hook:github:pr-${PR_NUMBER}\", \"deliver\": false, \"model\": \"anthropic/claude-sonnet-4-5\"}"
