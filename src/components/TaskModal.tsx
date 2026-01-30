@@ -1,25 +1,26 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Task, Priority, ColumnId } from '@/types';
+import { Task, Priority, ColumnId, Epic } from '@/types';
 
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (title: string, description: string, priority: Priority, columnId?: ColumnId) => void;
+  onSave: (title: string, description: string, priority: Priority, columnId?: ColumnId, epicId?: string | null) => void;
   task?: Task | null;
   defaultColumnId?: ColumnId;
+  epics?: Epic[];
+  defaultEpicId?: string | null;
 }
 
-export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId, epics = [], defaultEpicId }: TaskModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
+  const [epicId, setEpicId] = useState<string | null>(null);
   
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const firstFocusableRef = useRef<HTMLInputElement>(null);
-  const lastFocusableRef = useRef<HTMLButtonElement>(null);
 
   // Reset form when task changes or modal opens
   useEffect(() => {
@@ -27,17 +28,18 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
       setTitle(task.title);
       setDescription(task.description || '');
       setPriority(task.priority);
+      setEpicId(task.epicId || null);
     } else {
       setTitle('');
       setDescription('');
       setPriority('medium');
+      setEpicId(defaultEpicId || null);
     }
-  }, [task, isOpen]);
+  }, [task, isOpen, defaultEpicId]);
 
   // Focus title input when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Small delay to ensure modal is rendered
       setTimeout(() => {
         titleInputRef.current?.focus();
       }, 10);
@@ -48,17 +50,15 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!isOpen) return;
 
-    // Close on Escape
     if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
       return;
     }
 
-    // Focus trap on Tab
     if (e.key === 'Tab') {
       const focusableElements = modalRef.current?.querySelectorAll<HTMLElement>(
-        'input, textarea, button, [tabindex]:not([tabindex="-1"])'
+        'input, textarea, button, select, [tabindex]:not([tabindex="-1"])'
       );
       
       if (!focusableElements || focusableElements.length === 0) return;
@@ -67,13 +67,11 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
       const lastElement = focusableElements[focusableElements.length - 1];
 
       if (e.shiftKey) {
-        // Shift + Tab: if on first element, go to last
         if (document.activeElement === firstElement) {
           e.preventDefault();
           lastElement.focus();
         }
       } else {
-        // Tab: if on last element, go to first
         if (document.activeElement === lastElement) {
           e.preventDefault();
           firstElement.focus();
@@ -82,13 +80,11 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
     }
   }, [isOpen, onClose]);
 
-  // Add/remove keyboard listener
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -105,7 +101,7 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onSave(title.trim(), description.trim(), priority, defaultColumnId);
+    onSave(title.trim(), description.trim(), priority, defaultColumnId, epicId);
     onClose();
   };
 
@@ -114,6 +110,8 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
       onClose();
     }
   };
+
+  const selectedEpic = epics.find(e => e.id === epicId);
 
   return (
     <div 
@@ -165,6 +163,29 @@ export function TaskModal({ isOpen, onClose, onSave, task, defaultColumnId }: Ta
               rows={3}
             />
           </div>
+
+          {epics.length > 0 && (
+            <div>
+              <label htmlFor="task-epic" className="block text-sm text-zinc-400 mb-1">
+                Epic
+              </label>
+              <select
+                id="task-epic"
+                value={epicId || ''}
+                onChange={e => setEpicId(e.target.value || null)}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2
+                           text-zinc-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                style={selectedEpic ? { borderLeftColor: selectedEpic.color, borderLeftWidth: '4px' } : {}}
+              >
+                <option value="">No epic</option>
+                {epics.map(epic => (
+                  <option key={epic.id} value={epic.id}>
+                    {epic.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           
           <fieldset>
             <legend className="block text-sm text-zinc-400 mb-2">Priority</legend>

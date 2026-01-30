@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const db = getDb();
     const { id } = await params;
     const body = await request.json();
-    const { title, description, priority, columnId } = body;
+    const { title, description, priority, columnId, epicId } = body;
 
     // Get current task for comparison
     const [currentTask] = await db.select().from(tasks).where(eq(tasks.id, id));
@@ -43,6 +43,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (description !== undefined) updateData.description = description;
     if (priority !== undefined) updateData.priority = priority;
     if (columnId !== undefined) updateData.columnId = columnId;
+    if (epicId !== undefined) updateData.epicId = epicId;
 
     const [updatedTask] = await db
       .update(tasks)

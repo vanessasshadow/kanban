@@ -2,12 +2,21 @@ export type Priority = 'low' | 'medium' | 'high';
 
 export type ColumnId = 'backlog' | 'in-progress' | 'review' | 'done';
 
+export interface Epic {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+  createdAt: number;
+}
+
 export interface Task {
   id: string;
   title: string;
   description?: string;
   priority: Priority;
   columnId: ColumnId;
+  epicId?: string | null;
   createdAt: number;
 }
 

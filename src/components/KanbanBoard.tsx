@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -11,18 +11,22 @@ import {
   useSensors,
   closestCorners,
 } from '@dnd-kit/core';
-import { COLUMNS, Task, ColumnId, Priority } from '@/types';
+import { COLUMNS, Task, ColumnId, Priority, Epic } from '@/types';
 import { useTasks } from '@/hooks/useTasks';
+import { useEpics } from '@/hooks/useEpics';
 import { Column } from './Column';
 import { TaskCard } from './TaskCard';
 import { TaskModal } from './TaskModal';
+import { EpicSelector } from './EpicSelector';
 
 export function KanbanBoard() {
-  const { tasks, isLoaded, addTask, updateTask, deleteTask, moveTask, getTasksByColumn } = useTasks();
+  const { tasks, isLoaded, addTask, updateTask, deleteTask, moveTask } = useTasks();
+  const { epics, isLoaded: epicsLoaded, addEpic, deleteEpic } = useEpics();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [defaultColumnId, setDefaultColumnId] = useState<ColumnId>('backlog');
+  const [selectedEpicId, setSelectedEpicId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -31,6 +35,15 @@ export function KanbanBoard() {
       },
     })
   );
+
+  // Filter tasks by selected epic
+  const getTasksByColumn = useCallback((columnId: ColumnId) => {
+    return tasks.filter(task => {
+      const matchesColumn = task.columnId === columnId;
+      const matchesEpic = selectedEpicId === null || task.epicId === selectedEpicId;
+      return matchesColumn && matchesEpic;
+    });
+  }, [tasks, selectedEpicId]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const task = tasks.find(t => t.id === event.active.id);
@@ -78,15 +91,23 @@ export function KanbanBoard() {
     }
   };
 
-  const handleSaveTask = (title: string, description: string, priority: Priority, columnId?: ColumnId) => {
+  const handleSaveTask = (
+    title: string,
+    description: string,
+    priority: Priority,
+    columnId?: ColumnId,
+    epicId?: string | null
+  ) => {
     if (editingTask) {
-      updateTask(editingTask.id, { title, description, priority });
+      updateTask(editingTask.id, { title, description, priority, epicId });
     } else {
-      addTask(title, description, priority, columnId || 'backlog');
+      // Use selected epic if creating from filtered view
+      const taskEpicId = epicId !== undefined ? epicId : selectedEpicId;
+      addTask(title, description, priority, columnId || 'backlog', taskEpicId);
     }
   };
 
-  if (!isLoaded) {
+  if (!isLoaded || !epicsLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-zinc-950">
         <div className="text-zinc-500">Loading...</div>
@@ -95,11 +116,19 @@ export function KanbanBoard() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-6">
-      <header className="mb-8">
+    <div className="min-h-screen bg-zinc-950 p-6 pt-16">
+      <header className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-100">Kanban Board</h1>
         <p className="text-zinc-500 text-sm mt-1">Drag and drop to organize your tasks</p>
       </header>
+
+      <EpicSelector
+        epics={epics}
+        selectedEpicId={selectedEpicId}
+        onSelect={setSelectedEpicId}
+        onAddEpic={addEpic}
+        onDeleteEpic={deleteEpic}
+      />
 
       <DndContext
         sensors={sensors}
@@ -108,18 +137,18 @@ export function KanbanBoard() {
         onDragEnd={handleDragEnd}
       >
         <div className="flex justify-center overflow-x-auto pb-4">
-        <div className="flex gap-4">
-          {COLUMNS.map(column => (
-            <Column
-              key={column.id}
-              column={column}
-              tasks={getTasksByColumn(column.id)}
-              onEditTask={handleEditTask}
-              onDeleteTask={handleDeleteTask}
-              onAddTask={handleAddTask}
-            />
-          ))}
-        </div>
+          <div className="flex gap-4">
+            {COLUMNS.map(column => (
+              <Column
+                key={column.id}
+                column={column}
+                tasks={getTasksByColumn(column.id)}
+                onEditTask={handleEditTask}
+                onDeleteTask={handleDeleteTask}
+                onAddTask={handleAddTask}
+              />
+            ))}
+          </div>
         </div>
 
         <DragOverlay>
@@ -144,6 +173,8 @@ export function KanbanBoard() {
         onSave={handleSaveTask}
         task={editingTask}
         defaultColumnId={defaultColumnId}
+        epics={epics}
+        defaultEpicId={selectedEpicId}
       />
     </div>
   );

@@ -1,4 +1,15 @@
-import { pgTable, text, timestamp, uuid, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, boolean, integer } from 'drizzle-orm/pg-core';
+
+export const epics = pgTable('epics', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  color: text('color').notNull().default('#3b82f6'), // blue-500 default
+  position: integer('position').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export type Epic = typeof epics.$inferSelect;
+export type NewEpic = typeof epics.$inferInsert;
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -6,6 +17,7 @@ export const tasks = pgTable('tasks', {
   description: text('description'),
   priority: text('priority', { enum: ['low', 'medium', 'high'] }).notNull().default('medium'),
   columnId: text('column_id', { enum: ['backlog', 'in-progress', 'review', 'done'] }).notNull().default('backlog'),
+  epicId: uuid('epic_id').references(() => epics.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
