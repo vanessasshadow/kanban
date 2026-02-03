@@ -2,11 +2,20 @@ export type Priority = 'low' | 'medium' | 'high';
 
 export type ColumnId = 'backlog' | 'in-progress' | 'review' | 'done';
 
+export interface Project {
+  id: string;
+  name: string;
+  color: string;
+  position: number;
+  created_at: string;
+}
+
 export interface Epic {
   id: string;
   name: string;
   color: string;
   position: number;
+  projectId?: string | null;
   createdAt: number;
 }
 

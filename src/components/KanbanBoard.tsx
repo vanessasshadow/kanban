@@ -14,16 +14,19 @@ import {
 import { COLUMNS, Task, ColumnId, Priority, Epic } from '@/types';
 import { useTasks } from '@/hooks/useTasks';
 import { useEpics } from '@/hooks/useEpics';
+import { useProjects } from '@/hooks/useProjects';
 import { Column } from './Column';
 import { TaskCard } from './TaskCard';
 import { TaskModal } from './TaskModal';
 import { TaskDetailView } from './TaskDetailView';
 import { EpicSelector } from './EpicSelector';
+import { ProjectSelector } from './ProjectSelector';
 import { useToast } from './Toast';
 
 export function KanbanBoard() {
   const { tasks, isLoaded, addTask, updateTask, deleteTask, moveTask } = useTasks();
   const { epics, isLoaded: epicsLoaded, addEpic, deleteEpic } = useEpics();
+  const { projects, isLoaded: projectsLoaded } = useProjects();
   const { showToast } = useToast();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,6 +34,7 @@ export function KanbanBoard() {
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [defaultColumnId, setDefaultColumnId] = useState<ColumnId>('backlog');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedEpicId, setSelectedEpicId] = useState<string | null>(null);
   const [hideCompletedTasks, setHideCompletedTasks] = useState(false);
 
@@ -42,14 +46,32 @@ export function KanbanBoard() {
     })
   );
 
-  // Filter tasks by selected epic
+  // Filter epics by selected project
+  const filteredEpics = selectedProjectId
+    ? epics.filter(epic => epic.projectId === selectedProjectId)
+    : epics;
+
+  // Filter tasks by selected project and epic
   const getTasksByColumn = useCallback((columnId: ColumnId) => {
     return tasks.filter(task => {
       const matchesColumn = task.columnId === columnId;
+      
+      // Filter by epic
       const matchesEpic = selectedEpicId === null || task.epicId === selectedEpicId;
-      return matchesColumn && matchesEpic;
+      
+      // Filter by project (through epic's projectId)
+      let matchesProject = true;
+      if (selectedProjectId !== null && task.epicId) {
+        const taskEpic = epics.find(e => e.id === task.epicId);
+        matchesProject = taskEpic?.projectId === selectedProjectId;
+      } else if (selectedProjectId !== null && !task.epicId) {
+        // If project is selected but task has no epic, hide it
+        matchesProject = false;
+      }
+      
+      return matchesColumn && matchesEpic && matchesProject;
     });
-  }, [tasks, selectedEpicId]);
+  }, [tasks, selectedEpicId, selectedProjectId, epics]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const task = tasks.find(t => t.id === event.active.id);
@@ -136,7 +158,7 @@ export function KanbanBoard() {
     }
   };
 
-  if (!isLoaded || !epicsLoaded) {
+  if (!isLoaded || !epicsLoaded || !projectsLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-zinc-950">
         <div className="text-zinc-500">Loading...</div>
@@ -167,8 +189,18 @@ export function KanbanBoard() {
         </label>
       </header>
 
+      <ProjectSelector
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        onSelect={(projectId) => {
+          setSelectedProjectId(projectId);
+          // Reset epic selection when changing project
+          setSelectedEpicId(null);
+        }}
+      />
+
       <EpicSelector
-        epics={epics}
+        epics={filteredEpics}
         selectedEpicId={selectedEpicId}
         onSelect={setSelectedEpicId}
         onAddEpic={async (name, color) => {
